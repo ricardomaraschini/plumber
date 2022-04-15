@@ -3,6 +3,7 @@ package ctrl
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"path"
 
@@ -31,8 +32,9 @@ type OMutator func(context.Context, client.Object) error
 
 // ResourceToObjectFn is a function used by this controller when it needs to convert a
 // kustomization representation of an object (resource.Resource) into a kubernetes concret
-// object representation (client.Object).
-type ResourceToObjectFn func(*resource.Resource) (client.Object, error)
+// object representation (client.Object). This function must return a concrete implementation
+// client.Object for a resource.Resource.
+type ResourceToObjectFn func(*resource.Resource) client.Object
 
 // KustCtrl is a base controller to provide some tooling around rendering and creating resources
 // based in a kustomize directory struct. Files are expected to be injected into this controller
@@ -68,7 +70,7 @@ func NewKustCtrl(cli client.Client, emb embed.FS, opts ...Option) *KustCtrl {
 		cli:        cli,
 		from:       emb,
 		fowner:     "undefined",
-		objmappers: []ResourceToObjectFn{resourceToObject},
+		objmappers: []ResourceToObjectFn{objectToResource},
 	}
 
 	for _, opt := range opts {
@@ -138,13 +140,18 @@ func (k *KustCtrl) parse(ctx context.Context, overlay string) ([]client.Object, 
 	for _, rsc := range res.Resources() {
 		var found bool
 		for _, fn := range k.objmappers {
-			obj, err := fn(rsc)
-			if err != nil {
-				return nil, fmt.Errorf("error parsing object: %w", err)
-			}
-
+			obj := fn(rsc)
 			if obj == nil {
 				continue
+			}
+
+			rawjson, err := rsc.MarshalJSON()
+			if err != nil {
+				return nil, fmt.Errorf("error marshaling resource: %w", err)
+			}
+
+			if err := json.Unmarshal(rawjson, obj); err != nil {
+				return nil, fmt.Errorf("error unmarshaling into object: %w", err)
 			}
 
 			found = true

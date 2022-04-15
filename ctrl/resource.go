@@ -1,9 +1,6 @@
 package ctrl
 
 import (
-	"encoding/json"
-	"fmt"
-
 	appsv1 "k8s.io/api/apps/v1"
 	asclv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -12,68 +9,55 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/resid"
 )
 
-// resourceToObject converts provided resource.Resource into a client.Object representation by
-// marshaling and unmarshaling into a kubernetes struct. This function will return an error if
-// Resource GVK is not mapped to a struct.
-func resourceToObject(res *resource.Resource) (client.Object, error) {
-	var obj client.Object
-
+// objectToResource finds the proper client.Object for the provided resource.Resource. Returns
+// nil if the resource.Resource can't be managed to any client.Object.
+func objectToResource(res *resource.Resource) client.Object {
 	switch res.GetGvk() {
 	case resid.Gvk{
 		Version: "v1",
 		Kind:    "Secret",
 	}:
-		obj = &corev1.Secret{}
+		return &corev1.Secret{}
 
 	case resid.Gvk{
 		Version: "v1",
 		Kind:    "ConfigMap",
 	}:
-		obj = &corev1.ConfigMap{}
+		return &corev1.ConfigMap{}
 
 	case resid.Gvk{
 		Version: "v1",
 		Kind:    "Service",
 	}:
-		obj = &corev1.Service{}
+		return &corev1.Service{}
 
 	case resid.Gvk{
 		Version: "v1",
 		Kind:    "ServiceAccount",
 	}:
-		obj = &corev1.ServiceAccount{}
+		return &corev1.ServiceAccount{}
 
 	case resid.Gvk{
 		Version: "v1",
 		Kind:    "PersistentVolumeClaim",
 	}:
-		obj = &corev1.PersistentVolumeClaim{}
+		return &corev1.PersistentVolumeClaim{}
 
 	case resid.Gvk{
 		Group:   "apps",
 		Version: "v1",
 		Kind:    "Deployment",
 	}:
-		obj = &appsv1.Deployment{}
+		return &appsv1.Deployment{}
 
 	case resid.Gvk{
 		Group:   "autoscaling",
 		Version: "v2beta2",
 		Kind:    "HorizontalPodAutoscaler",
 	}:
-		obj = &asclv1.HorizontalPodAutoscaler{}
+		return &asclv1.HorizontalPodAutoscaler{}
 
 	default:
-		return nil, nil
+		return nil
 	}
-
-	rawjson, err := res.MarshalJSON()
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling resource: %w", err)
-	}
-
-	if err := json.Unmarshal(rawjson, obj); err != nil {
-		return nil, fmt.Errorf("error unmarshaling object: %w", err)
-	}
-	return obj, nil
 }
