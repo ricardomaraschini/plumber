@@ -96,8 +96,8 @@ func (k *KustCtrl) Apply(ctx context.Context, overlay string) error {
 			}
 		}
 
-		fowner := client.FieldOwner(k.fowner)
-		if err := k.cli.Patch(ctx, obj, client.Apply, fowner); err == nil {
+		err := k.cli.Patch(ctx, obj, client.Apply, client.FieldOwner(k.fowner))
+		if err == nil {
 			continue
 		}
 
