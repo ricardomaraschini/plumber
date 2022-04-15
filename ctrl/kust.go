@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/filesys"
 	"sigs.k8s.io/kustomize/api/krusty"
@@ -95,9 +96,17 @@ func (k *KustCtrl) Apply(ctx context.Context, overlay string) error {
 			}
 		}
 
-		err := k.cli.Patch(ctx, obj, client.Apply, client.FieldOwner(k.fowner))
-		if err != nil {
+		fowner := client.FieldOwner(k.fowner)
+		if err := k.cli.Patch(ctx, obj, client.Apply, fowner); err == nil {
+			continue
+		}
+
+		if !errors.IsNotFound(err) {
 			return fmt.Errorf("error patching object: %w", err)
+		}
+
+		if err := k.cli.Create(ctx, obj); err != nil {
+			return fmt.Errorf("error creating object: %w", err)
 		}
 	}
 
