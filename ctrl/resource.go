@@ -7,6 +7,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/kyaml/resid"
+
+	routev1 "github.com/openshift/api/route/v1"
+	tektonv1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 )
 
 // objectToResource finds the proper client.Object for the provided resource.Resource. Returns
@@ -56,6 +59,27 @@ func objectToResource(res *resource.Resource) client.Object {
 		Kind:    "HorizontalPodAutoscaler",
 	}:
 		return &asclv1.HorizontalPodAutoscaler{}
+
+	case resid.Gvk{
+		Group:   "tekton.dev",
+		Version: "v1beta1",
+		Kind:    "Pipeline",
+	}:
+		return &tektonv1beta1.Pipeline{}
+
+	case resid.Gvk{
+		Group:   "tekton.dev",
+		Version: "v1beta1",
+		Kind:    "Task",
+	}:
+		return &tektonv1beta1.Task{}
+
+	case resid.Gvk{
+		Group:   "route.openshift.io",
+		Version: "v1",
+		Kind:    "Route",
+	}:
+		return &routev1.Route{}
 
 	default:
 		return nil
