@@ -51,13 +51,13 @@ type ResourceToObjectFn func(*resource.Resource) (client.Object, error)
 // In other words, we have a base kustomization under base/ directory and each other directory is
 // treated as an overlay to be applied on top of base.
 type KustCtrl struct {
-	cli       client.Client
-	from      embed.FS
-	overlay   string
-	fowner    string
-	restoobj  ResourceToObjectFn
-	KMutators []KMutator
-	OMutators []OMutator
+	cli        client.Client
+	from       embed.FS
+	overlay    string
+	fowner     string
+	objmappers []ResourceToObjectFn
+	KMutators  []KMutator
+	OMutators  []OMutator
 }
 
 // NewKustCtrl returns a kustomize controller reading and applying files provided by the embed.FS
@@ -65,10 +65,10 @@ type KustCtrl struct {
 // argument to Kustomize when generating objects.
 func NewKustCtrl(cli client.Client, emb embed.FS, opts ...Option) *KustCtrl {
 	ctrl := &KustCtrl{
-		cli:      cli,
-		from:     emb,
-		fowner:   "undefined",
-		restoobj: resourceToObject,
+		cli:        cli,
+		from:       emb,
+		fowner:     "undefined",
+		objmappers: []ResourceToObjectFn{resourceToObject},
 	}
 
 	for _, opt := range opts {
@@ -136,11 +136,25 @@ func (k *KustCtrl) parse(ctx context.Context, overlay string) ([]client.Object, 
 
 	var objs []client.Object
 	for _, rsc := range res.Resources() {
-		obj, err := k.restoobj(rsc)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing object: %w", err)
+		var found bool
+		for _, fn := range k.objmappers {
+			obj, err := fn(rsc)
+			if err != nil {
+				return nil, fmt.Errorf("error parsing object: %w", err)
+			}
+
+			if obj == nil {
+				continue
+			}
+
+			found = true
+			objs = append(objs, obj)
+			break
 		}
-		objs = append(objs, obj)
+
+		if !found {
+			return nil, fmt.Errorf("unable to convert %s", rsc.GetGvk().String())
+		}
 	}
 	return objs, nil
 }

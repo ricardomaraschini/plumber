@@ -19,8 +19,8 @@ func WithOMutator(mutator OMutator) Option {
 
 // WithResourceToObjectFn sets up a different translation function to be used when converting a
 // resource.Resource into a client.Object.
-func WithResourceToObjectFn(fn ResourceToObjectFn) Option {
+func WithResourceToObjectFn(fn objectMappers) Option {
 	return func(k *KustCtrl) {
-		k.restoobj = fn
+		k.objmappers = append([]objectMappers{fn}, k.objmappers...)
 	}
 }

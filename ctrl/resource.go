@@ -27,6 +27,12 @@ func resourceToObject(res *resource.Resource) (client.Object, error) {
 
 	case resid.Gvk{
 		Version: "v1",
+		Kind:    "ConfigMap",
+	}:
+		obj = &corev1.ConfigMap{}
+
+	case resid.Gvk{
+		Version: "v1",
 		Kind:    "Service",
 	}:
 		obj = &corev1.Service{}
@@ -58,7 +64,7 @@ func resourceToObject(res *resource.Resource) (client.Object, error) {
 		obj = &asclv1.HorizontalPodAutoscaler{}
 
 	default:
-		return nil, fmt.Errorf("unmapped type %+v", res.GetGvk())
+		return nil, nil
 	}
 
 	rawjson, err := res.MarshalJSON()
