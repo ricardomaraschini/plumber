@@ -1,4 +1,4 @@
-module github.com/ricardomaraschini/plumber
+module github.com/ricardomaraschini/plumber/v2
 
 go 1.18
 
