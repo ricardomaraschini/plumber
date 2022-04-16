@@ -59,7 +59,9 @@ type KustCtrl struct {
 
 // NewKustCtrl returns a kustomize controller reading and applying files provided by the embed.FS
 // reference. Files are read from 'emb' into a filesys.FileSystem representation and then used as
-// argument to Kustomize when generating objects.
+// argument to Kustomize when generating objects. The scheme passed in here as an argument must
+// know all concrete types for the objects being rendered. For example, if we are rendering a pod
+// this scheme must contain the corev1 known types registered.
 func NewKustCtrl(cli client.Client, emb embed.FS, sch *runtime.Scheme, opts ...Option) *KustCtrl {
 	ctrl := &KustCtrl{
 		cli:    cli,
