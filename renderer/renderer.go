@@ -1,4 +1,4 @@
-package ctrl
+package renderer
 
 import (
 	"context"
@@ -24,13 +24,13 @@ import (
 // that, after parse, is send over to all registered KMutators for further transformations.
 const BaseKustomizationPath = "/kustomize/base/kustomization.yaml"
 
-// KMutator is a function that is intended to mutate a Kustomization struct.
-type KMutator func(context.Context, *types.Kustomization) error
+// KustomizeMutator is a function that is intended to mutate a Kustomization struct.
+type KustomizeMutator func(context.Context, *types.Kustomization) error
 
-// OMutator is a function that is intended to mutate a Kubernetes object.
-type OMutator func(context.Context, client.Object) error
+// ObjectMutator is a function that is intended to mutate a Kubernetes object.
+type ObjectMutator func(context.Context, client.Object) error
 
-// KustCtrl is a base controller to provide some tooling around rendering and creating resources
+// Renderer is a base controller to provide some tooling around rendering and creating resources
 // based in a kustomize directory struct. Files are expected to be injected into this controller
 // by means of an embed.FS struct. The filesystem struct, inside the embed.FS struct, is expected
 // to comply with the following layout:
@@ -46,20 +46,20 @@ type OMutator func(context.Context, client.Object) error
 //
 // In other words, we have a base kustomization under base/ directory and each other directory is
 // treated as an overlay to be applied on top of base.
-type KustCtrl struct {
+type Renderer struct {
 	cli       client.Client
 	from      embed.FS
 	overlay   string
 	fowner    string
-	KMutators []KMutator
-	OMutators []OMutator
+	kmutators []KustomizeMutator
+	omutators []ObjectMutator
 }
 
-// NewKustCtrl returns a kustomize controller reading and applying files provided by the embed.FS
-// reference. Files are read from 'emb' into a filesys.FileSystem representation and then used as
-// argument to Kustomize when generating objects.
-func NewKustCtrl(cli client.Client, emb embed.FS, opts ...Option) *KustCtrl {
-	ctrl := &KustCtrl{
+// New returns a kustomize renderer reading and applying files provided by the embed.FS reference.
+// Files are read from 'emb' into a filesys.FileSystem representation and then used as argument to
+// Kustomize when generating objects.
+func New(cli client.Client, emb embed.FS, opts ...Option) *Renderer {
+	ctrl := &Renderer{
 		cli:    cli,
 		from:   emb,
 		fowner: "undefined",
@@ -72,25 +72,25 @@ func NewKustCtrl(cli client.Client, emb embed.FS, opts ...Option) *KustCtrl {
 	return ctrl
 }
 
-// Apply applies provided overlay and creates objects in the kubernetes API using internal client.
+// Render applies provided overlay and creates objects in the kubernetes API using internal client.
 // In case of failures there is no rollback so it is possible that this ends up partially creating
 // the objects (returns at the first failure). Prior to object creation this function feeds all
 // registered OMutators with the objects allowing for last time adjusts. Mutations in the default
 // kustomization.yaml are also executed here.
-func (k *KustCtrl) Apply(ctx context.Context, overlay string) error {
-	objs, err := k.parse(ctx, overlay)
+func (r *Renderer) Render(ctx context.Context, overlay string) error {
+	objs, err := r.parse(ctx, overlay)
 	if err != nil {
 		return fmt.Errorf("error parsing kustomize files: %w", err)
 	}
 
 	for _, obj := range objs {
-		for _, mut := range k.OMutators {
+		for _, mut := range r.omutators {
 			if err := mut(ctx, obj); err != nil {
 				return fmt.Errorf("error mutating object: %w", err)
 			}
 		}
 
-		err := k.cli.Patch(ctx, obj, client.Apply, client.FieldOwner(k.fowner))
+		err := r.cli.Patch(ctx, obj, client.Apply, client.FieldOwner(r.fowner))
 		if err == nil {
 			continue
 		}
@@ -99,25 +99,25 @@ func (k *KustCtrl) Apply(ctx context.Context, overlay string) error {
 			return fmt.Errorf("error patching object: %w", err)
 		}
 
-		if err := k.cli.Create(ctx, obj); err != nil {
+		if err := r.cli.Create(ctx, obj); err != nil {
 			return fmt.Errorf("error creating object: %w", err)
 		}
 	}
 
-	k.overlay = overlay
+	r.overlay = overlay
 	return nil
 }
 
 // parse reads kustomize files and returns them all parsed as valid client.Object structs. Loads
 // everything from the embed.FS into a filesys.FileSystem instance, mutates the base kustomization
 // and returns the objects as a slice of client.Object.
-func (k *KustCtrl) parse(ctx context.Context, overlay string) ([]client.Object, error) {
-	virtfs, err := infra.LoadFS(k.from)
+func (r *Renderer) parse(ctx context.Context, overlay string) ([]client.Object, error) {
+	virtfs, err := infra.LoadFS(r.from)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load overlay: %w", err)
 	}
 
-	if err := k.mutateKustomization(ctx, virtfs); err != nil {
+	if err := r.mutateKustomization(ctx, virtfs); err != nil {
 		return nil, fmt.Errorf("error setting object name prefix: %w", err)
 	}
 
@@ -130,7 +130,7 @@ func (k *KustCtrl) parse(ctx context.Context, overlay string) ([]client.Object, 
 
 	var objs []client.Object
 	for _, rsc := range res.Resources() {
-		runtimeobj, err := k.cli.Scheme().New(
+		runtimeobj, err := r.cli.Scheme().New(
 			schema.GroupVersionKind{
 				Group:   rsc.GetGvk().Group,
 				Version: rsc.GetGvk().Version,
@@ -165,8 +165,8 @@ func (k *KustCtrl) parse(ctx context.Context, overlay string) ([]client.Object, 
 
 // mutateKustomization feeds all registered KMutators with the parsed BaseKustomizationPath.
 // After feeding KMutators the output is marshaled and written back to the filesys.FileSystem.
-func (k *KustCtrl) mutateKustomization(ctx context.Context, fs filesys.FileSystem) error {
-	if len(k.KMutators) == 0 {
+func (r *Renderer) mutateKustomization(ctx context.Context, fs filesys.FileSystem) error {
+	if len(r.kmutators) == 0 {
 		return nil
 	}
 
@@ -180,7 +180,7 @@ func (k *KustCtrl) mutateKustomization(ctx context.Context, fs filesys.FileSyste
 		return fmt.Errorf("error parsing base kustomization: %w", err)
 	}
 
-	for _, mut := range k.KMutators {
+	for _, mut := range r.kmutators {
 		if err := mut(ctx, &kust); err != nil {
 			return fmt.Errorf("error mutating kustomization: %w", err)
 		}
@@ -195,9 +195,4 @@ func (k *KustCtrl) mutateKustomization(ctx context.Context, fs filesys.FileSyste
 		return fmt.Errorf("error writing base kustomization: %w", err)
 	}
 	return nil
-}
-
-// Overlay returns the last applied overlay.
-func (k *KustCtrl) Overlay() string {
-	return k.overlay
 }
