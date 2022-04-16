@@ -8,7 +8,6 @@ import (
 	"path"
 
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/filesys"
@@ -52,21 +51,17 @@ type KustCtrl struct {
 	from      embed.FS
 	overlay   string
 	fowner    string
-	scheme    *runtime.Scheme
 	KMutators []KMutator
 	OMutators []OMutator
 }
 
 // NewKustCtrl returns a kustomize controller reading and applying files provided by the embed.FS
 // reference. Files are read from 'emb' into a filesys.FileSystem representation and then used as
-// argument to Kustomize when generating objects. The scheme passed in here as an argument must
-// know all concrete types for the objects being rendered. For example, if we are rendering a pod
-// this scheme must contain the corev1 known types registered.
-func NewKustCtrl(cli client.Client, emb embed.FS, sch *runtime.Scheme, opts ...Option) *KustCtrl {
+// argument to Kustomize when generating objects.
+func NewKustCtrl(cli client.Client, emb embed.FS, opts ...Option) *KustCtrl {
 	ctrl := &KustCtrl{
 		cli:    cli,
 		from:   emb,
-		scheme: sch,
 		fowner: "undefined",
 	}
 
@@ -135,7 +130,7 @@ func (k *KustCtrl) parse(ctx context.Context, overlay string) ([]client.Object, 
 
 	var objs []client.Object
 	for _, rsc := range res.Resources() {
-		runtimeobj, err := k.scheme.New(
+		runtimeobj, err := k.cli.Scheme().New(
 			schema.GroupVersionKind{
 				Group:   rsc.GetGvk().Group,
 				Version: rsc.GetGvk().Version,
