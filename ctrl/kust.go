@@ -52,7 +52,7 @@ type KustCtrl struct {
 	from      embed.FS
 	overlay   string
 	fowner    string
-	scheme    runtime.Scheme
+	scheme    *runtime.Scheme
 	KMutators []KMutator
 	OMutators []OMutator
 }
@@ -60,11 +60,11 @@ type KustCtrl struct {
 // NewKustCtrl returns a kustomize controller reading and applying files provided by the embed.FS
 // reference. Files are read from 'emb' into a filesys.FileSystem representation and then used as
 // argument to Kustomize when generating objects.
-func NewKustCtrl(cli client.Client, emb embed.FS, schm runtime.Scheme, opts ...Option) *KustCtrl {
+func NewKustCtrl(cli client.Client, emb embed.FS, sch *runtime.Scheme, opts ...Option) *KustCtrl {
 	ctrl := &KustCtrl{
 		cli:    cli,
 		from:   emb,
-		scheme: schm,
+		scheme: sch,
 		fowner: "undefined",
 	}
 
