@@ -8,10 +8,11 @@ import (
 	"path"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/filesys"
 	"sigs.k8s.io/kustomize/api/krusty"
-	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/api/types"
 
 	"gopkg.in/yaml.v2"
@@ -30,12 +31,6 @@ type KMutator func(context.Context, *types.Kustomization) error
 // OMutator is a function that is intended to mutate a Kubernetes object.
 type OMutator func(context.Context, client.Object) error
 
-// ResourceToObjectFn is a function used by this controller when it needs to convert a
-// kustomization representation of an object (resource.Resource) into a kubernetes concret
-// object representation (client.Object). This function must return a concrete implementation
-// client.Object for a resource.Resource.
-type ResourceToObjectFn func(*resource.Resource) client.Object
-
 // KustCtrl is a base controller to provide some tooling around rendering and creating resources
 // based in a kustomize directory struct. Files are expected to be injected into this controller
 // by means of an embed.FS struct. The filesystem struct, inside the embed.FS struct, is expected
@@ -53,24 +48,24 @@ type ResourceToObjectFn func(*resource.Resource) client.Object
 // In other words, we have a base kustomization under base/ directory and each other directory is
 // treated as an overlay to be applied on top of base.
 type KustCtrl struct {
-	cli        client.Client
-	from       embed.FS
-	overlay    string
-	fowner     string
-	objmappers []ResourceToObjectFn
-	KMutators  []KMutator
-	OMutators  []OMutator
+	cli       client.Client
+	from      embed.FS
+	overlay   string
+	fowner    string
+	scheme    runtime.Scheme
+	KMutators []KMutator
+	OMutators []OMutator
 }
 
 // NewKustCtrl returns a kustomize controller reading and applying files provided by the embed.FS
 // reference. Files are read from 'emb' into a filesys.FileSystem representation and then used as
 // argument to Kustomize when generating objects.
-func NewKustCtrl(cli client.Client, emb embed.FS, opts ...Option) *KustCtrl {
+func NewKustCtrl(cli client.Client, emb embed.FS, schm runtime.Scheme, opts ...Option) *KustCtrl {
 	ctrl := &KustCtrl{
-		cli:        cli,
-		from:       emb,
-		fowner:     "undefined",
-		objmappers: []ResourceToObjectFn{objectToResource},
+		cli:    cli,
+		from:   emb,
+		scheme: schm,
+		fowner: "undefined",
 	}
 
 	for _, opt := range opts {
@@ -138,30 +133,35 @@ func (k *KustCtrl) parse(ctx context.Context, overlay string) ([]client.Object, 
 
 	var objs []client.Object
 	for _, rsc := range res.Resources() {
-		var found bool
-		for _, fn := range k.objmappers {
-			obj := fn(rsc)
-			if obj == nil {
-				continue
-			}
-
-			rawjson, err := rsc.MarshalJSON()
-			if err != nil {
-				return nil, fmt.Errorf("error marshaling resource: %w", err)
-			}
-
-			if err := json.Unmarshal(rawjson, obj); err != nil {
-				return nil, fmt.Errorf("error unmarshaling into object: %w", err)
-			}
-
-			found = true
-			objs = append(objs, obj)
-			break
+		runtimeobj, err := k.scheme.New(
+			schema.GroupVersionKind{
+				Group:   rsc.GetGvk().Group,
+				Version: rsc.GetGvk().Version,
+				Kind:    rsc.GetGvk().Kind,
+			},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create object: %w", err)
 		}
 
-		if !found {
-			return nil, fmt.Errorf("unable to convert %s", rsc.GetGvk().String())
+		rawjson, err := rsc.MarshalJSON()
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling resource: %w", err)
 		}
+
+		if err := json.Unmarshal(rawjson, runtimeobj); err != nil {
+			return nil, fmt.Errorf("error unmarshaling into object: %w", err)
+		}
+
+		clientobj, ok := runtimeobj.(client.Object)
+		if !ok {
+			// this should not happen as all runtime.Object also implement
+			// client.Object. keeping this as a safeguard.
+			gvkstr := runtimeobj.GetObjectKind().GroupVersionKind().String()
+			return nil, fmt.Errorf("%s is not client.Object", gvkstr)
+		}
+
+		objs = append(objs, clientobj)
 	}
 	return objs, nil
 }
