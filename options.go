@@ -1,4 +1,4 @@
-package renderer
+package plumber
 
 // Option is a function that sets an option in a Renderer.
 type Option func(*Renderer)

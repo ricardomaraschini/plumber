@@ -1,4 +1,4 @@
-package renderer
+package plumber
 
 import (
 	"context"
@@ -15,8 +15,6 @@ import (
 	"sigs.k8s.io/kustomize/api/types"
 
 	"gopkg.in/yaml.v2"
-
-	"github.com/ricardomaraschini/plumber/infra"
 )
 
 // BaseKustomizationPath is the location for the base kustomization.yaml file. This controller
@@ -55,10 +53,10 @@ type Renderer struct {
 	omutators []ObjectMutator
 }
 
-// New returns a kustomize renderer reading and applying files provided by the embed.FS reference.
-// Files are read from 'emb' into a filesys.FileSystem representation and then used as argument to
-// Kustomize when generating objects.
-func New(cli client.Client, emb embed.FS, opts ...Option) *Renderer {
+// NewRenderer returns a kustomize renderer reading and applying files provided by the embed.FS
+// reference. Files are read from 'emb' into a filesys.FileSystem representation and then used
+// as argument to Kustomize when generating objects.
+func NewRenderer(cli client.Client, emb embed.FS, opts ...Option) *Renderer {
 	ctrl := &Renderer{
 		cli:    cli,
 		from:   emb,
@@ -112,7 +110,7 @@ func (r *Renderer) Render(ctx context.Context, overlay string) error {
 // everything from the embed.FS into a filesys.FileSystem instance, mutates the base kustomization
 // and returns the objects as a slice of client.Object.
 func (r *Renderer) parse(ctx context.Context, overlay string) ([]client.Object, error) {
-	virtfs, err := infra.LoadFS(r.from)
+	virtfs, err := LoadFS(r.from)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load overlay: %w", err)
 	}
