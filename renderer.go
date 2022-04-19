@@ -47,7 +47,6 @@ type ObjectMutator func(context.Context, client.Object) error
 type Renderer struct {
 	cli       client.Client
 	from      embed.FS
-	overlay   string
 	fowner    string
 	kmutators []KustomizeMutator
 	omutators []ObjectMutator
@@ -102,7 +101,6 @@ func (r *Renderer) Render(ctx context.Context, overlay string) error {
 		}
 	}
 
-	r.overlay = overlay
 	return nil
 }
 
