@@ -8,10 +8,13 @@ import (
 	"path"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/filesys"
 	"sigs.k8s.io/kustomize/api/krusty"
+	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/api/types"
 
 	"gopkg.in/yaml.v2"
@@ -45,11 +48,12 @@ type ObjectMutator func(context.Context, client.Object) error
 // In other words, we have a base kustomization under base/ directory and each other directory is
 // treated as an overlay to be applied on top of base.
 type Renderer struct {
-	cli       client.Client
-	from      embed.FS
-	fowner    string
-	kmutators []KustomizeMutator
-	omutators []ObjectMutator
+	cli          client.Client
+	from         embed.FS
+	fowner       string
+	unstructured bool
+	kmutators    []KustomizeMutator
+	omutators    []ObjectMutator
 }
 
 // NewRenderer returns a kustomize renderer reading and applying files provided by the embed.FS
@@ -126,37 +130,72 @@ func (r *Renderer) parse(ctx context.Context, overlay string) ([]client.Object, 
 
 	var objs []client.Object
 	for _, rsc := range res.Resources() {
-		runtimeobj, err := r.cli.Scheme().New(
-			schema.GroupVersionKind{
-				Group:   rsc.GetGvk().Group,
-				Version: rsc.GetGvk().Version,
-				Kind:    rsc.GetGvk().Kind,
-			},
-		)
+		if r.unstructured {
+			clientobj, err := r.unstructuredObject(rsc)
+			if err != nil {
+				return nil, fmt.Errorf("error converting type to unstructure: %w", err)
+			}
+			objs = append(objs, clientobj)
+			continue
+		}
+
+		clientobj, err := r.typedObject(rsc)
 		if err != nil {
-			return nil, fmt.Errorf("unable to create object: %w", err)
+			return nil, err
 		}
-
-		rawjson, err := rsc.MarshalJSON()
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling resource: %w", err)
-		}
-
-		if err := json.Unmarshal(rawjson, runtimeobj); err != nil {
-			return nil, fmt.Errorf("error unmarshaling into object: %w", err)
-		}
-
-		clientobj, ok := runtimeobj.(client.Object)
-		if !ok {
-			// this should not happen as all runtime.Object also implement
-			// client.Object. keeping this as a safeguard.
-			gvkstr := runtimeobj.GetObjectKind().GroupVersionKind().String()
-			return nil, fmt.Errorf("%s is not client.Object", gvkstr)
-		}
-
 		objs = append(objs, clientobj)
 	}
 	return objs, nil
+}
+
+// unstructuredObject converts a kustomize resource into a client.Object. This is useful when
+// the object is not registered in the scheme.
+func (r *Renderer) unstructuredObject(rsc *resource.Resource) (client.Object, error) {
+	data, err := rsc.AsYAML()
+	if err != nil {
+		return nil, fmt.Errorf("error converting resource to yaml: %w", err)
+	}
+
+	obj := &unstructured.Unstructured{}
+	dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+	if _, _, err := dec.Decode(data, nil, obj); err != nil {
+		return nil, fmt.Errorf("error decoding unstructured object: %w", err)
+	}
+	return obj, nil
+}
+
+// typedObject converts a kustomize resource to a typed client.Object. This is done by
+// marshaling the resource to yaml and then unmarshaling it to the correct type.
+func (r *Renderer) typedObject(rsc *resource.Resource) (client.Object, error) {
+	runtimeobj, err := r.cli.Scheme().New(
+		schema.GroupVersionKind{
+			Group:   rsc.GetGvk().Group,
+			Version: rsc.GetGvk().Version,
+			Kind:    rsc.GetGvk().Kind,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("unable to instantiate runtime object: %w", err)
+	}
+
+	rawjson, err := rsc.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling resource: %w", err)
+	}
+
+	if err := json.Unmarshal(rawjson, runtimeobj); err != nil {
+		return nil, fmt.Errorf("error unmarshaling into object: %w", err)
+	}
+
+	clientobj, ok := runtimeobj.(client.Object)
+	if !ok {
+		// this should not happen as all runtime.Object also implement
+		// client.Object. keeping this as a safeguard.
+		gvkstr := runtimeobj.GetObjectKind().GroupVersionKind().String()
+		return nil, fmt.Errorf("%s is not client.Object", gvkstr)
+	}
+
+	return clientobj, nil
 }
 
 // mutateKustomization feeds all registered KMutators with the parsed BaseKustomizationPath.
