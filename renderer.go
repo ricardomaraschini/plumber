@@ -50,7 +50,6 @@ type ObjectMutator func(context.Context, client.Object) error
 type Renderer struct {
 	cli          client.Client
 	from         embed.FS
-	fowner       string
 	unstructured bool
 	kmutators    []KustomizeMutator
 	omutators    []ObjectMutator
@@ -61,9 +60,8 @@ type Renderer struct {
 // as argument to Kustomize when generating objects.
 func NewRenderer(cli client.Client, emb embed.FS, opts ...Option) *Renderer {
 	ctrl := &Renderer{
-		cli:    cli,
-		from:   emb,
-		fowner: "undefined",
+		cli:  cli,
+		from: emb,
 	}
 
 	for _, opt := range opts {
@@ -91,7 +89,7 @@ func (r *Renderer) Render(ctx context.Context, overlay string) error {
 			}
 		}
 
-		err := r.cli.Patch(ctx, obj, client.Apply, client.FieldOwner(r.fowner))
+		err := r.cli.Patch(ctx, obj, client.Apply)
 		if err == nil {
 			continue
 		}
