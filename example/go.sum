@@ -112,8 +112,6 @@ github.com/replicatedhq/kurlkinds v1.0.10 h1:V+ejtf1UU+NfjnQt68aJEEKxmm4bS7Fi5cf
 github.com/replicatedhq/kurlkinds v1.0.10/go.mod h1:xoSKk917a+BE3vDSgunKKiNSg4XwW4MXj5ka5+xHn2A=
 github.com/replicatedhq/troubleshoot v0.51.0 h1:yzQPwW9rCaKL9NCDZ19gWkvo1aaPjpY0a/h/c6n7vB0=
 github.com/replicatedhq/troubleshoot v0.51.0/go.mod h1:jS25aClad385wsNRLx/AsiY3B5XL8/bFkqxnpnY68aU=
-github.com/ricardomaraschini/plumber v1.12.0 h1:s6rkJU/BQuwzI3AYsDo8AS6GiwDRlzvtgR9/EgMBjAQ=
-github.com/ricardomaraschini/plumber v1.12.0/go.mod h1:NqEA77elIKeJEqoohyWj/QssmMhubUf7eUNKHlNnC1c=
 github.com/sergi/go-diff v1.1.0 h1:we8PVUC3FE2uYfodKH/nBHMSetSfHDR6scGdBi+erh0=
 github.com/spf13/pflag v1.0.5 h1:iy+VFUOCP1a+8yFto/drg2CJ5u0yRoB7fZw3DKv/JXA=
 github.com/spf13/pflag v1.0.5/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3An2Bg=
