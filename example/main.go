@@ -10,6 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/kustomize/api/types"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	kurlkinds "github.com/replicatedhq/kurlkinds/pkg/apis"
 	"github.com/ricardomaraschini/plumber"
@@ -62,12 +63,18 @@ func main() {
 				return nil
 			},
 		),
+		plumber.WithFSMutator(
+			func(ctx context.Context, fs filesys.FileSystem) error {
+				// here we can edit the filesystem before yaml files are
+				// rendered with kustomize.
+				return nil
+			},
+		),
 	}
 
+	renderer := plumber.NewRenderer(cli, resources, options...)
 	for _, overlay := range []string{"base", "scale-up", "scale-down"} {
-		if err := plumber.NewRenderer(cli, resources, options...).Render(
-			context.Background(), overlay,
-		); err != nil {
+		if err := renderer.Render(context.Background(), overlay); err != nil {
 			panic(err)
 		}
 		fmt.Printf("overlay %q applied\n", overlay)
