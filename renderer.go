@@ -68,7 +68,7 @@ func NewRenderer(cli client.Client, emb embed.FS, opts ...Option) *Renderer {
 	ctrl := &Renderer{
 		cli:    cli,
 		from:   emb,
-		fowner: "undefined",
+		fowner: "plumber",
 	}
 
 	for _, opt := range opts {
@@ -96,7 +96,8 @@ func (r *Renderer) Render(ctx context.Context, overlay string) error {
 			}
 		}
 
-		err := r.cli.Patch(ctx, obj, client.Apply, client.FieldOwner(r.fowner))
+		options := []client.PatchOption{client.FieldOwner(r.fowner), client.ForceOwnership}
+		err := r.cli.Patch(ctx, obj, client.Apply, options...)
 		if err == nil {
 			continue
 		}
