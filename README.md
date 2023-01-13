@@ -60,14 +60,20 @@ func main() {
 				return nil
 			},
 		),
+		plumber.WithFSMutator(
+			func(ctx context.Context, fs filesys.FileSystem) error {
+				// here we can edit the filesystem before yaml files are
+				// rendered with kustomize.
+				return nil
+			},
+		),
 	}
 
 	// for sake of having a complete example, here we apply different overlays
 	// on top of the base deployment.
+	renderer := plumber.NewRenderer(cli, resources, options...)
 	for _, overlay := range []string{"base", "scale-up", "scale-down"} {
-		if err := plumber.NewRenderer(cli, resources, options...).Render(
-			context.Background(), overlay,
-		); err != nil {
+		if err := renderer.Render(context.Background(), overlay); err != nil {
 			panic(err)
 		}
 		fmt.Printf("overlay %q applied\n", overlay)
