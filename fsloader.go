@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"path"
 
-	"sigs.k8s.io/kustomize/api/filesys"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
 
 // LoadFS loads an embed FS struct into an in memory kustomize file system representation. Reads

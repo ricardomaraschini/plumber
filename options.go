@@ -23,3 +23,12 @@ func WithUnstructured() Option {
 		r.unstructured = true
 	}
 }
+
+// WithFSMutator register a filesystem mutator into the controller. FS mutators
+// are called before the Kustomize and Object mutators, allows for fine grained
+// changes on the filesystem prior to rendering objects with kustomize.
+func WithFSMutator(mutator FSMutator) Option {
+	return func(r *Renderer) {
+		r.fsmutators = append(r.fsmutators, mutator)
+	}
+}

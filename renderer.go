@@ -12,10 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/kustomize/api/filesys"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/api/types"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"gopkg.in/yaml.v2"
 )
@@ -30,6 +30,10 @@ type KustomizeMutator func(context.Context, *types.Kustomization) error
 
 // ObjectMutator is a function that is intended to mutate a Kubernetes object.
 type ObjectMutator func(context.Context, client.Object) error
+
+// FSMutator is a function that is intended to mutate a embed files prior to rendering them as
+// a kustomize graph.
+type FSMutator func(context.Context, filesys.FileSystem) error
 
 // Renderer is a base controller to provide some tooling around rendering and creating resources
 // based in a kustomize directory struct. Files are expected to be injected into this controller
@@ -50,9 +54,11 @@ type ObjectMutator func(context.Context, client.Object) error
 type Renderer struct {
 	cli          client.Client
 	from         embed.FS
+	fowner       string
 	unstructured bool
 	kmutators    []KustomizeMutator
 	omutators    []ObjectMutator
+	fsmutators   []FSMutator
 }
 
 // NewRenderer returns a kustomize renderer reading and applying files provided by the embed.FS
@@ -60,8 +66,9 @@ type Renderer struct {
 // as argument to Kustomize when generating objects.
 func NewRenderer(cli client.Client, emb embed.FS, opts ...Option) *Renderer {
 	ctrl := &Renderer{
-		cli:  cli,
-		from: emb,
+		cli:    cli,
+		from:   emb,
+		fowner: "undefined",
 	}
 
 	for _, opt := range opts {
@@ -89,7 +96,7 @@ func (r *Renderer) Render(ctx context.Context, overlay string) error {
 			}
 		}
 
-		err := r.cli.Patch(ctx, obj, client.Apply)
+		err := r.cli.Patch(ctx, obj, client.Apply, client.FieldOwner(r.fowner))
 		if err == nil {
 			continue
 		}
@@ -113,6 +120,12 @@ func (r *Renderer) parse(ctx context.Context, overlay string) ([]client.Object, 
 	virtfs, err := LoadFS(r.from)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load overlay: %w", err)
+	}
+
+	for _, mut := range r.fsmutators {
+		if err := mut(ctx, virtfs); err != nil {
+			return nil, fmt.Errorf("error mutating filesystem: %w", err)
+		}
 	}
 
 	if err := r.mutateKustomization(ctx, virtfs); err != nil {
