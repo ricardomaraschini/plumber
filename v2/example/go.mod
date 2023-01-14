@@ -61,4 +61,4 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace github.com/replicatedhq/plumber => ../
+replace github.com/ricardomaraschini/plumber => ../
