@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/replicatedhq/kurlkinds v1.0.10
-	github.com/replicatedhq/plumber v1.12.0
+	github.com/ricardomaraschini/plumber v1.17.0
 	k8s.io/api v0.26.0
 	sigs.k8s.io/controller-runtime v0.14.1
 	sigs.k8s.io/kustomize/api v0.12.1
