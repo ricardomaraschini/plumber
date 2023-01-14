@@ -135,7 +135,7 @@ func (r *Renderer) Delete(ctx context.Context, overlay string) error {
 			}
 		}
 		if err := r.cli.Delete(ctx, obj); err != nil {
-			if !errors.IsNotFound(err) {
+			if errors.IsNotFound(err) {
 				continue
 			}
 			return fmt.Errorf("error deleting object: %w", err)
