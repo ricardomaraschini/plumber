@@ -1,4 +1,4 @@
-module github.com/ricardomaraschini/plumber
+module github.com/replicatedhq/plumber
 
 go 1.19
 
