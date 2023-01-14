@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	kurlkinds "github.com/replicatedhq/kurlkinds/pkg/apis"
-	"github.com/ricardomaraschini/plumber"
+	"github.com/replicatedhq/plumber"
 )
 
 //go:embed kustomize
