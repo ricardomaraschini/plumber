@@ -1,5 +1,0 @@
-namespace: default
-resources:
-- ../base
-patches:
-- path: scale-down.yaml
