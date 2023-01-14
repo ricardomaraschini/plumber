@@ -89,7 +89,6 @@ func (r *Renderer) Render(ctx context.Context, overlay string) error {
 	if err != nil {
 		return fmt.Errorf("error parsing kustomize files: %w", err)
 	}
-
 	for _, obj := range objs {
 		for _, mut := range r.omutators {
 			if err := mut(ctx, obj); err != nil {
@@ -111,11 +110,13 @@ func (r *Renderer) Render(ctx context.Context, overlay string) error {
 			return fmt.Errorf("error patching object: %w", err)
 		}
 
+		// XXX some verions of kubernetes fails to patch objects that do not exist, at
+		// least I have seen this error in the past, this is kept here for backwards
+		// compability. This should be removed in the future.
 		if err := r.cli.Create(ctx, obj); err != nil {
 			return fmt.Errorf("error creating object: %w", err)
 		}
 	}
-
 	return nil
 }
 

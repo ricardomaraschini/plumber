@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	kurlkinds "github.com/replicatedhq/kurlkinds/pkg/apis"
-	"github.com/ricardomaraschini/plumber"
+	"github.com/ricardomaraschini/plumber/v2"
 )
 
 //go:embed kustomize
@@ -38,6 +38,8 @@ func main() {
 		// WithObjectMutator below as it will start to receive unstructured
 		// objects as well:
 		// plumber.WithUnstructured(),
+		plumber.WithForceOwnership(),
+		plumber.WithFieldOwner("test"),
 		plumber.WithObjectMutator(
 			func(ctx context.Context, obj client.Object) error {
 				// here we can edit the objects before they are
