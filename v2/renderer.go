@@ -31,6 +31,11 @@ type KustomizeMutator func(context.Context, *types.Kustomization) error
 // ObjectMutator is a function that is intended to mutate a Kubernetes object.
 type ObjectMutator func(context.Context, client.Object) error
 
+// PostApplyAction is a function that is intended to be executed after the creation of an
+// object. These functions are called after each object is created. The creation of new
+// objects resumes once these functions returns no error.
+type PostApplyAction func(context.Context, client.Object) error
+
 // FSMutator is a function that is intended to mutate a embed files prior to rendering them as
 // a kustomize graph.
 type FSMutator func(context.Context, filesys.FileSystem) error
@@ -59,6 +64,7 @@ type Renderer struct {
 	unstructured bool
 	kmutators    []KustomizeMutator
 	omutators    []ObjectMutator
+	postApply    []PostApplyAction
 	fsmutators   []FSMutator
 }
 
@@ -102,19 +108,23 @@ func (r *Renderer) Apply(ctx context.Context, overlay string) error {
 		}
 
 		err := r.cli.Patch(ctx, obj, client.Apply, opts...)
-		if err == nil {
-			continue
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				return fmt.Errorf("error patching object: %w", err)
+			}
+
+			// XXX some verions of kubernetes fails to patch objects that do not
+			// exist, at least I have seen this error in the past, this is kept
+			// here for backwards compability. This should be removed in the future.
+			if err := r.cli.Create(ctx, obj); err != nil {
+				return fmt.Errorf("error creating object: %w", err)
+			}
 		}
 
-		if !errors.IsNotFound(err) {
-			return fmt.Errorf("error patching object: %w", err)
-		}
-
-		// XXX some verions of kubernetes fails to patch objects that do not exist, at
-		// least I have seen this error in the past, this is kept here for backwards
-		// compability. This should be removed in the future.
-		if err := r.cli.Create(ctx, obj); err != nil {
-			return fmt.Errorf("error creating object: %w", err)
+		for _, action := range r.postApply {
+			if err := action(ctx, obj); err != nil {
+				return fmt.Errorf("error running post apply action: %w", err)
+			}
 		}
 	}
 	return nil

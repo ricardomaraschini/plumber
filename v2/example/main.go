@@ -72,6 +72,23 @@ func main() {
 				return nil
 			},
 		),
+		plumber.WithPostApplyAction(
+			func(ctx context.Context, obj client.Object) error {
+				// here we can do something after the object is created
+				// in the cluster. this is useful for things like waiting
+				// for the object to be ready, or for doing some cleanup
+				// after the object is created.
+				if _, ok := obj.(*appsv1.Deployment); !ok {
+					return nil
+				}
+
+				// as an example we wait for the deployment to be ready
+				// before returning. upon return the apply operation resumes
+				// and the next object is created.
+				// awaitForDeploymentReady(ctx, cli, obj.GetName())
+				return nil
+			},
+		),
 	}
 
 	renderer := plumber.NewRenderer(cli, resources, options...)

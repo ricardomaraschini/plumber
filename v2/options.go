@@ -39,6 +39,16 @@ func WithUnstructured() Option {
 	}
 }
 
+// WithPostApplyAction register a post apply action into the controller. Post
+// apply actions are called after the object is created in the API server. These
+// actions are called sequentially and the creation of new objects is resumed
+// once all actions return no error.
+func WithPostApplyAction(action PostApplyAction) Option {
+	return func(r *Renderer) {
+		r.postApply = append(r.postApply, action)
+	}
+}
+
 // WithFSMutator register a filesystem mutator into the controller. FS mutators
 // are called before the Kustomize and Object mutators, allows for fine grained
 // changes on the filesystem prior to rendering objects with kustomize.
