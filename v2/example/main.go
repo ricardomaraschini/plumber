@@ -76,7 +76,7 @@ func main() {
 
 	renderer := plumber.NewRenderer(cli, resources, options...)
 	for _, overlay := range []string{"base", "scale-up", "scale-down"} {
-		if err := renderer.Render(context.Background(), overlay); err != nil {
+		if err := renderer.Apply(context.Background(), overlay); err != nil {
 			panic(err)
 		}
 		fmt.Printf("overlay %q applied\n", overlay)

@@ -7,7 +7,7 @@ type Option func(*Renderer)
 // This sets the field manager on the patch request.
 func WithFieldOwner(owner string) Option {
 	return func(r *Renderer) {
-		r.fowner = owner
+		r.fieldOwner = owner
 	}
 }
 

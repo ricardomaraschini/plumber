@@ -54,7 +54,7 @@ type FSMutator func(context.Context, filesys.FileSystem) error
 type Renderer struct {
 	cli          client.Client
 	from         embed.FS
-	fowner       string
+	fieldOwner   string
 	forceOwner   bool
 	unstructured bool
 	kmutators    []KustomizeMutator
@@ -67,9 +67,9 @@ type Renderer struct {
 // as argument to Kustomize when generating objects.
 func NewRenderer(cli client.Client, emb embed.FS, opts ...Option) *Renderer {
 	ctrl := &Renderer{
-		cli:    cli,
-		from:   emb,
-		fowner: "plumber",
+		cli:        cli,
+		from:       emb,
+		fieldOwner: "plumber",
 	}
 
 	for _, opt := range opts {
@@ -79,12 +79,12 @@ func NewRenderer(cli client.Client, emb embed.FS, opts ...Option) *Renderer {
 	return ctrl
 }
 
-// Render applies provided overlay and creates objects in the kubernetes API using internal client.
+// Apply applies provided overlay and creates objects in the kubernetes API using internal client.
 // In case of failures there is no rollback so it is possible that this ends up partially creating
 // the objects (returns at the first failure). Prior to object creation this function feeds all
 // registered OMutators with the objects allowing for last time adjusts. Mutations in the default
 // kustomization.yaml are also executed here.
-func (r *Renderer) Render(ctx context.Context, overlay string) error {
+func (r *Renderer) Apply(ctx context.Context, overlay string) error {
 	objs, err := r.parse(ctx, overlay)
 	if err != nil {
 		return fmt.Errorf("error parsing kustomize files: %w", err)
@@ -96,7 +96,7 @@ func (r *Renderer) Render(ctx context.Context, overlay string) error {
 			}
 		}
 
-		opts := []client.PatchOption{client.FieldOwner(r.fowner)}
+		opts := []client.PatchOption{client.FieldOwner(r.fieldOwner)}
 		if r.forceOwner {
 			opts = append(opts, client.ForceOwnership)
 		}
